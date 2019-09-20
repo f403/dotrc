@@ -68,7 +68,7 @@ import subprocess as sb
 import argparse
 
 
-__version__ = '0.3.3'
+__version__ = '0.3.3.patch_mouse'
 
 
 HEX_DIGIT_PATTERN = '[0-9A-F]'
@@ -99,6 +99,8 @@ parser.add_argument('-p', '--profile', default=PROFILE,
                     help='The profile to switch to. available options are: hsp, a2dp. default is: %s' % PROFILE)
 parser.add_argument('-V', '--version', action='store_true', help='Show the version.')
 parser.add_argument('mac', nargs='?', default=None)
+parser.add_argument('-m', '--mouse', action='store_true', default=False,
+                    help='If given, this script is being used for pairing a bluetooth mouse.')
 
 
 # Exceptions
@@ -107,6 +109,9 @@ class SubprocessError(Exception):
 
 
 class RetryExceededError(Exception):
+    pass
+
+class MouseOnly(Exception):
     pass
 
 
@@ -303,6 +308,11 @@ async def main(args):
         mac = mac.split(':' if ':' in mac else '_')
         print('Device MAC: %s' % ':'.join(mac))
 
+        if args.mouse:
+            await protocol.trust(mac)
+            await protocol.connect(mac)         
+            raise MouseOnly('Launched with --mouse flag. Exiting.')
+
         device_id = await find_dev_id(mac, fail_safe=True)
         if device_id is None:
             print('It seems device: %s is not connected yet, trying to connect.' % ':'.join(mac))
@@ -334,7 +344,7 @@ async def main(args):
         await set_profile(device_id, args.profile)
         await set_default_sink(sink)
 
-    except (SubprocessError, RetryExceededError) as ex:
+    except (SubprocessError, RetryExceededError, MouseOnly) as ex:
         print(str(ex), file=sys.stderr)
         return 1
     finally:
